@@ -1,4 +1,4 @@
-all: src/custom_bin/custom_bin.c setup.py
+all: src/mapper_c_utils/mapper_c_utils.c setup.py
 	python3 setup.py build_ext --inplace
 
 test: all

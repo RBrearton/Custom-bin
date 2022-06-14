@@ -146,25 +146,77 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     return Py_None;
 }
 
-static PyMethodDef custom_bin_methods[] = {
+static PyObject *linear_map(PyObject *dummy, PyObject *args)
+{
+    // Pointers to the arguments we're going to receive (one matrix and one
+    // array of vectors).
+    PyObject *matrix_arg = NULL;
+    PyObject *vector_array_arg = NULL;
+
+    // Parse these arguments.
+    if (!PyArg_ParseTuple(args, "OO", &vector_array_arg, &matrix_arg))
+        return NULL;
+
+    // Cast them to numpy arrays of floats.
+    PyObject *matrix_arr = PyArray_FROM_OTF(matrix_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    float *matrix = PyArray_GETPTR1(matrix_arr, 0);
+    PyObject *vector_array = PyArray_FROM_OTF(vector_array_arg,
+                                              NPY_FLOAT32, NPY_IN_ARRAY);
+    float *vector_array_pointer = PyArray_GETPTR1(vector_array, 0);
+
+    // Work out how many vectors we're dealing with here.
+    npy_intp *number_of_vectors = PyArray_SHAPE((PyArrayObject *)vector_array);
+
+    // Iterate over each of the vectors and map them by the matrix.
+    for (int i = 0; i < number_of_vectors; ++i)
+    {
+        vector_float32 *current_vector =
+            (vector_float32 *)(vector_array_pointer + i * 3);
+
+        // We're going to need to copy the current vector's elements.
+        float x = current_vector->x;
+        float y = current_vector->y;
+        float z = current_vector->z;
+
+        // Now update the current_vector via rules of matrix multiplication.
+        current_vector->x = matrix[0] * x + matrix[1] * y + matrix[2] * z;
+        current_vector->y = matrix[3] * x + matrix[4] * y + matrix[5] * z;
+        current_vector->z = matrix[6] * x + matrix[7] * y + matrix[8] * z;
+    }
+
+    // Do the usual housework: don't leak memory and return None.
+    Py_DECREF(matrix);
+    Py_DECREF(vector_array);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
+static PyMethodDef mapper_c_utils_methods[] = {
     {
         "weighted_bin_3d",
         weighted_bin_3d,
         METH_VARARGS,
         "Custom high performance weighted 3d binning tool.",
     },
+    {
+        "linear_map",
+        linear_map,
+        METH_VARARGS,
+        "Custom high performance mapping of array of vectors by matrix.",
+    },
     {NULL, NULL, 0, NULL}};
 
-static struct PyModuleDef custom_bin_definition = {
+static struct PyModuleDef mapper_c_utils_definition = {
     PyModuleDef_HEAD_INIT,
-    "custom_bin",
+    "mapper_c_utils",
     "A Python module for highly optimized binning routines.",
     -1,
-    custom_bin_methods};
+    mapper_c_utils_methods};
 
-PyMODINIT_FUNC PyInit_custom_bin(void)
+PyMODINIT_FUNC PyInit_mapper_c_utils(void)
 {
     Py_Initialize();
     import_array();
-    return PyModule_Create(&custom_bin_definition);
+    return PyModule_Create(&mapper_c_utils_definition);
 }

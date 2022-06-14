@@ -1,6 +1,6 @@
 import numpy as np
 
-import custom_bin
+import mapper_c_utils
 
 
 def weighted_bin_3d(arr: np.ndarray, start: np.ndarray, stop: np.ndarray,
@@ -28,8 +28,8 @@ def weighted_bin_3d(arr: np.ndarray, start: np.ndarray, stop: np.ndarray,
     # initializing it here.
     out = np.ndarray(shape, np.float32)
 
-    custom_bin.weighted_bin_3d(arr, start, stop, step, shape,
-                               weights, out)
+    mapper_c_utils.weighted_bin_3d(arr, start, stop, step, shape,
+                                   weights, out)
     return out
 
 

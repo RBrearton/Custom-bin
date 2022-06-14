@@ -14,8 +14,8 @@ def configuration(parent_package='', top_path=None):
     config = Configuration('',
                            parent_package,
                            top_path)
-    config.add_extension('custom_bin',
-                         ['src/custom_bin/custom_bin.c'],
+    config.add_extension('mapper_c_utils',
+                         ['src/mapper_c_utils/mapper_c_utils.c'],
                          extra_info=info)
 
     return config
