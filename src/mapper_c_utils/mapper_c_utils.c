@@ -187,7 +187,7 @@ static PyObject *linear_map(PyObject *dummy, PyObject *args)
     }
 
     // Do the usual housework: don't leak memory and return None.
-    Py_DECREF(matrix);
+    Py_DECREF(matrix_arr);
     Py_DECREF(vector_array);
 
     Py_IncRef(Py_None);
