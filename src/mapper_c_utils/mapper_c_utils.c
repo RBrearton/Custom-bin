@@ -99,12 +99,13 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     vector_float32 *step = (vector_float32 *)PyArray_GETPTR1(step_arr, 0);
     vector_int32 *shape = (vector_int32 *)PyArray_GETPTR1(shape_arr, 0);
 
-    npy_intp *number_of_vectors = PyArray_SHAPE((PyArrayObject *)coords);
+    npy_intp *coord_shape = PyArray_SHAPE((PyArrayObject *)coords);
+    int number_of_vectors = coord_shape[0];
     // printf("Number of vectors found: %li\n", *number_of_vectors);
     // fflush(stdout);
 
     // This is where the heavy lifting takes place. This loop bottlenecks.
-    for (int vector_num = 0; vector_num < *number_of_vectors; ++vector_num)
+    for (int vector_num = 0; vector_num < number_of_vectors; ++vector_num)
     {
         vector_float32 *current_coord =
             (vector_float32 *)(coords_pointer + vector_num * 3);
@@ -165,7 +166,8 @@ static PyObject *linear_map(PyObject *dummy, PyObject *args)
     float *vector_array_pointer = PyArray_GETPTR1(vector_array, 0);
 
     // Work out how many vectors we're dealing with here.
-    npy_intp *number_of_vectors = PyArray_SHAPE((PyArrayObject *)vector_array);
+    npy_intp *shape = PyArray_SHAPE((PyArrayObject *)vector_array);
+    int number_of_vectors = shape[0];
 
     // Iterate over each of the vectors and map them by the matrix.
     for (int i = 0; i < number_of_vectors; ++i)
