@@ -1,4 +1,5 @@
-A simple but extremely quick binning algorithm for weighted 3D datasets.
+Some simple but extremely quick algorithms for use with
+https://github.com/RBrearton/RSMapper.
 
 Build by typing "make"
 
