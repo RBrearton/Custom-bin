@@ -101,8 +101,6 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
 
     npy_intp *coord_shape = PyArray_SHAPE((PyArrayObject *)coords);
     int number_of_vectors = coord_shape[0];
-    // printf("Number of vectors found: %li\n", *number_of_vectors);
-    // fflush(stdout);
 
     // This is where the heavy lifting takes place. This loop bottlenecks.
     for (int vector_num = 0; vector_num < number_of_vectors; ++vector_num)
@@ -116,18 +114,13 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
             continue;
         if (current_coord->z < start->z || current_coord->z >= stop->z)
             continue;
-        // vector_print(current_coord);
 
         vector_subtract(current_coord, start);
-        // vector_print(current_coord);
 
         vector_divide(current_coord, step);
         vector_int32 indices = {(int)current_coord->x,
                                 (int)current_coord->y,
                                 (int)current_coord->z};
-
-        // printf("Indices calcuclated: ");
-        // vector_int_print(&indices);
 
         // This point is within bounds. Add its weight to the weights array.
         int final_arr_idx = offset(&indices, shape);
