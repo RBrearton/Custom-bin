@@ -107,12 +107,13 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     {
         vector_float32 *current_coord =
             (vector_float32 *)(coords_pointer + vector_num * 3);
-        // Deal with points being out of bounds.
-        if (current_coord->x < start->x || current_coord->x >= stop->x)
+
+        // Deal with points being below the lower bound.
+        if (current_coord->x < start->x)
             continue;
-        if (current_coord->y < start->y || current_coord->y >= stop->y)
+        if (current_coord->y < start->y)
             continue;
-        if (current_coord->z < start->z || current_coord->z >= stop->z)
+        if (current_coord->z < start->z)
             continue;
 
         vector_subtract(current_coord, start);
@@ -121,6 +122,16 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
         vector_int32 indices = {(int)current_coord->x,
                                 (int)current_coord->y,
                                 (int)current_coord->z};
+
+        // Deal with points being over the upper bound.
+        // There are important, tedious floating point precision reasons why
+        // the bounds checking must be done in two parts. Don't ask.
+        if (indices.x >= shape->x)
+            continue;
+        if (indices.y >= shape->y)
+            continue;
+        if (indices.z >= shape->z)
+            continue;
 
         // This point is within bounds. Add its weight to the weights array.
         int final_arr_idx = offset(&indices, shape);
