@@ -52,7 +52,7 @@ void vector_int_print(vector_int32 *vec)
 
 // Flattens the [x, y, z] element of a 3D array to a single index used to access
 // the same element in an equivalent 1D array.
-inline int offset(vector_int32 *index, vector_int32 *shape)
+inline uint64_t offset(vector_int32 *index, vector_int32 *shape)
 {
     return (index->x * shape->z * shape->y) + (index->y * shape->z) + index->z;
 }
@@ -67,11 +67,12 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     PyObject *shape_arg = NULL;
     PyObject *weights_arg = NULL;
     PyObject *out_arg = NULL;
+    PyObject *count_arg = NULL;
 
     // Parse the arguments given to this function on the python end.
-    if (!PyArg_ParseTuple(args, "OOOOOOO",
+    if (!PyArg_ParseTuple(args, "OOOOOOOO",
                           &coord_arg, &start_arg, &stop_arg, &step_arg,
-                          &shape_arg, &weights_arg, &out_arg))
+                          &shape_arg, &weights_arg, &out_arg, &count_arg))
         return NULL;
 
     // Do some housework. We need to go from python objects to C types, which
@@ -90,10 +91,14 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
         PyArray_FROM_OTF(weights_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     PyObject *out_arr =
         PyArray_FROM_OTF(out_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *count_arr =
+        PyArray_FROM_OTF(count_arg, NPY_UINT32, NPY_IN_ARRAY);
 
     float *coords_pointer = PyArray_GETPTR1(coords, 0);
     float *weights = PyArray_GETPTR1(weights_arr, 0);
     float *out = PyArray_GETPTR1(out_arr, 0);
+    uint32_t *count = PyArray_GETPTR1(count_arr, 0);
+
     vector_float32 *start = (vector_float32 *)PyArray_GETPTR1(start_arr, 0);
     vector_float32 *stop = (vector_float32 *)PyArray_GETPTR1(stop_arr, 0);
     vector_float32 *step = (vector_float32 *)PyArray_GETPTR1(step_arr, 0);
@@ -134,8 +139,9 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
             continue;
 
         // This point is within bounds. Add its weight to the weights array.
-        int final_arr_idx = offset(&indices, shape);
+        uint64_t final_arr_idx = offset(&indices, shape);
         out[final_arr_idx] += weights[vector_num];
+        count[final_arr_idx] += 1;
     }
 
     // Do some more housework: try not to leak memory.
@@ -146,6 +152,72 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     Py_DECREF(shape_arr);
     Py_DECREF(weights_arr);
     Py_DECREF(out_arr);
+    Py_DECREF(count_arr);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
+static PyObject *simple_float_add(PyObject *dummy, PyObject *args)
+{
+    // Pointers to the arguments we're going to receive (two 3D arrays).
+    PyObject *out_arg = NULL;
+    PyObject *to_add_arg = NULL;
+
+    // Parse these arguments.
+    if (!PyArg_ParseTuple(args, "OO", &out_arg, &to_add_arg))
+        return NULL;
+
+    // Cast them to numpy arrays of floats, then to C arrays.
+    PyObject *out_arr = PyArray_FROM_OTF(out_arg,
+                                         NPY_FLOAT32, NPY_IN_ARRAY);
+    float *out = PyArray_GETPTR1(out_arr, 0);
+    PyObject *to_add_array = PyArray_FROM_OTF(to_add_arg,
+                                              NPY_FLOAT32, NPY_IN_ARRAY);
+    float *to_add = PyArray_GETPTR1(to_add_array, 0);
+
+    // Work out the size of these arrays.
+    uint64_t size = (uint64_t)PyArray_SIZE((PyArrayObject *)out_arr);
+
+    // Iterate over all of the elements.
+    for (uint64_t i = 0; i < size; ++i)
+        out[i] += to_add[i];
+    // Do housework.
+    Py_DECREF(out_arr);
+    Py_DECREF(to_add_array);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
+static PyObject *simple_uint32_add(PyObject *dummy, PyObject *args)
+{
+    // Pointers to the arguments we're going to receive (two 3D arrays).
+    PyObject *out_arg = NULL;
+    PyObject *to_add_arg = NULL;
+
+    // Parse these arguments.
+    if (!PyArg_ParseTuple(args, "OO", &out_arg, &to_add_arg))
+        return NULL;
+
+    // Cast them to numpy arrays of floats, then to C arrays.
+    PyObject *out_arr = PyArray_FROM_OTF(out_arg,
+                                         NPY_UINT32, NPY_IN_ARRAY);
+    uint32_t *out = PyArray_GETPTR1(out_arr, 0);
+    PyObject *to_add_array = PyArray_FROM_OTF(to_add_arg,
+                                              NPY_UINT32, NPY_IN_ARRAY);
+    uint32_t *to_add = PyArray_GETPTR1(to_add_array, 0);
+
+    // Work out the size of these arrays.
+    uint64_t size = (uint64_t)PyArray_SIZE((PyArrayObject *)out_arr);
+
+    // Iterate over all of the elements.
+    for (uint64_t i = 0; i < size; ++i)
+        out[i] += to_add[i];
+
+    // Do housework.
+    Py_DECREF(out_arr);
+    Py_DECREF(to_add_array);
 
     Py_IncRef(Py_None);
     return Py_None;
@@ -163,7 +235,8 @@ static PyObject *linear_map(PyObject *dummy, PyObject *args)
         return NULL;
 
     // Cast them to numpy arrays of floats.
-    PyObject *matrix_arr = PyArray_FROM_OTF(matrix_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *matrix_arr =
+        PyArray_FROM_OTF(matrix_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     float *matrix = PyArray_GETPTR1(matrix_arr, 0);
     PyObject *vector_array = PyArray_FROM_OTF(vector_array_arg,
                                               NPY_FLOAT32, NPY_IN_ARRAY);
@@ -204,6 +277,18 @@ static PyMethodDef mapper_c_utils_methods[] = {
         weighted_bin_3d,
         METH_VARARGS,
         "Custom high performance weighted 3d binning tool.",
+    },
+    {
+        "simple_float_add",
+        simple_float_add,
+        METH_VARARGS,
+        "Adds the second array to the first.",
+    },
+    {
+        "simple_uint32_add",
+        simple_uint32_add,
+        METH_VARARGS,
+        "Adds the second array to the first.",
     },
     {
         "linear_map",
