@@ -158,71 +158,6 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     return Py_None;
 }
 
-static PyObject *simple_float_add(PyObject *dummy, PyObject *args)
-{
-    // Pointers to the arguments we're going to receive (two 3D arrays).
-    PyObject *out_arg = NULL;
-    PyObject *to_add_arg = NULL;
-
-    // Parse these arguments.
-    if (!PyArg_ParseTuple(args, "OO", &out_arg, &to_add_arg))
-        return NULL;
-
-    // Cast them to numpy arrays of floats, then to C arrays.
-    PyObject *out_arr = PyArray_FROM_OTF(out_arg,
-                                         NPY_FLOAT32, NPY_IN_ARRAY);
-    float *out = PyArray_GETPTR1(out_arr, 0);
-    PyObject *to_add_array = PyArray_FROM_OTF(to_add_arg,
-                                              NPY_FLOAT32, NPY_IN_ARRAY);
-    float *to_add = PyArray_GETPTR1(to_add_array, 0);
-
-    // Work out the size of these arrays.
-    uint64_t size = (uint64_t)PyArray_SIZE((PyArrayObject *)out_arr);
-
-    // Iterate over all of the elements.
-    for (uint64_t i = 0; i < size; ++i)
-        out[i] += to_add[i];
-    // Do housework.
-    Py_DECREF(out_arr);
-    Py_DECREF(to_add_array);
-
-    Py_IncRef(Py_None);
-    return Py_None;
-}
-
-static PyObject *simple_uint32_add(PyObject *dummy, PyObject *args)
-{
-    // Pointers to the arguments we're going to receive (two 3D arrays).
-    PyObject *out_arg = NULL;
-    PyObject *to_add_arg = NULL;
-
-    // Parse these arguments.
-    if (!PyArg_ParseTuple(args, "OO", &out_arg, &to_add_arg))
-        return NULL;
-
-    // Cast them to numpy arrays of floats, then to C arrays.
-    PyObject *out_arr = PyArray_FROM_OTF(out_arg,
-                                         NPY_UINT32, NPY_IN_ARRAY);
-    uint32_t *out = PyArray_GETPTR1(out_arr, 0);
-    PyObject *to_add_array = PyArray_FROM_OTF(to_add_arg,
-                                              NPY_UINT32, NPY_IN_ARRAY);
-    uint32_t *to_add = PyArray_GETPTR1(to_add_array, 0);
-
-    // Work out the size of these arrays.
-    uint64_t size = (uint64_t)PyArray_SIZE((PyArrayObject *)out_arr);
-
-    // Iterate over all of the elements.
-    for (uint64_t i = 0; i < size; ++i)
-        out[i] += to_add[i];
-
-    // Do housework.
-    Py_DECREF(out_arr);
-    Py_DECREF(to_add_array);
-
-    Py_IncRef(Py_None);
-    return Py_None;
-}
-
 static PyObject *linear_map(PyObject *dummy, PyObject *args)
 {
     // Pointers to the arguments we're going to receive (one matrix and one
@@ -331,18 +266,6 @@ static PyMethodDef mapper_c_utils_methods[] = {
         cylindrical_polar,
         METH_VARARGS,
         "Maps input Nx3 vector to cylindrical polars (in degrees).",
-    },
-    {
-        "simple_float_add",
-        simple_float_add,
-        METH_VARARGS,
-        "Adds the second array to the first.",
-    },
-    {
-        "simple_uint32_add",
-        simple_uint32_add,
-        METH_VARARGS,
-        "Adds the second array to the first.",
     },
     {
         "linear_map",
