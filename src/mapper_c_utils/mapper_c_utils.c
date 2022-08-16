@@ -62,27 +62,25 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     // Some object declarations.
     PyObject *coord_arg = NULL;
     PyObject *start_arg = NULL;
-    PyObject *stop_arg = NULL;
     PyObject *step_arg = NULL;
     PyObject *shape_arg = NULL;
     PyObject *weights_arg = NULL;
     PyObject *out_arg = NULL;
     PyObject *count_arg = NULL;
+    PyObject *min_intensity_arg = NULL;
 
     // Parse the arguments given to this function on the python end.
     if (!PyArg_ParseTuple(args, "OOOOOOOO",
-                          &coord_arg, &start_arg, &stop_arg, &step_arg,
-                          &shape_arg, &weights_arg, &out_arg, &count_arg))
+                          &coord_arg, &start_arg, &step_arg,
+                          &shape_arg, &weights_arg, &out_arg, &count_arg,
+                          &min_intensity_arg))
         return NULL;
-
     // Do some housework. We need to go from python objects to C types, which
     // requires some casting.
     PyObject *coords =
         PyArray_FROM_OTF(coord_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     PyObject *start_arr =
         PyArray_FROM_OTF(start_arg, NPY_FLOAT32, NPY_IN_ARRAY);
-    PyObject *stop_arr =
-        PyArray_FROM_OTF(stop_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     PyObject *step_arr =
         PyArray_FROM_OTF(step_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     PyObject *shape_arr =
@@ -93,14 +91,16 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
         PyArray_FROM_OTF(out_arg, NPY_FLOAT32, NPY_IN_ARRAY);
     PyObject *count_arr =
         PyArray_FROM_OTF(count_arg, NPY_UINT32, NPY_IN_ARRAY);
+    PyObject *min_intensity_arr =
+        PyArray_FROM_OTF(min_intensity_arg, NPY_FLOAT32, NPY_IN_ARRAY);
 
+    float min_intensity = *((float *)PyArray_GETPTR1(min_intensity_arr, 0));
     float *coords_pointer = PyArray_GETPTR1(coords, 0);
     float *weights = PyArray_GETPTR1(weights_arr, 0);
     float *out = PyArray_GETPTR1(out_arr, 0);
     uint32_t *count = PyArray_GETPTR1(count_arr, 0);
 
     vector_float32 *start = (vector_float32 *)PyArray_GETPTR1(start_arr, 0);
-    vector_float32 *stop = (vector_float32 *)PyArray_GETPTR1(stop_arr, 0);
     vector_float32 *step = (vector_float32 *)PyArray_GETPTR1(step_arr, 0);
     vector_int32 *shape = (vector_int32 *)PyArray_GETPTR1(shape_arr, 0);
 
@@ -110,6 +110,10 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     // This is where the heavy lifting takes place. This loop bottlenecks.
     for (int vector_num = 0; vector_num < number_of_vectors; ++vector_num)
     {
+        // Skip if this pixel is being masked.
+        if (weights[vector_num] < min_intensity)
+            continue;
+
         vector_float32 *current_coord =
             (vector_float32 *)(coords_pointer + vector_num * 3);
 
@@ -147,12 +151,12 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     // Do some more housework: try not to leak memory.
     Py_DECREF(coords);
     Py_DECREF(start_arr);
-    Py_DECREF(stop_arr);
     Py_DECREF(step_arr);
     Py_DECREF(shape_arr);
     Py_DECREF(weights_arr);
     Py_DECREF(out_arr);
     Py_DECREF(count_arr);
+    Py_DECREF(min_intensity_arr);
 
     Py_IncRef(Py_None);
     return Py_None;
