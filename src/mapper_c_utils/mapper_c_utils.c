@@ -202,10 +202,123 @@ static PyObject *linear_map(PyObject *dummy, PyObject *args)
         current_vector->z = matrix[6] * x + matrix[7] * y + matrix[8] * z;
     }
 
-    // Do the usual housework: don't leak memory and return None.
+    // Do the usual housework: don't leak memory; return None.
     Py_DECREF(matrix_arr);
     Py_DECREF(vector_array);
 
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
+static PyObject *lorentz_correction(PyObject *dummy, PyObject *args)
+{
+    PyObject *k_in_arg;
+    PyObject *k_out_arg;
+    PyObject *intensities_arg;
+
+    if (!PyArg_ParseTuple(args, "OOO",
+                          &k_in_arg, &k_out_arg, &intensities_arg))
+        return NULL;
+
+    // Convert to arrays.
+    PyObject *k_in_arr =
+        PyArray_FROM_OTF(k_in_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *k_out_arr =
+        PyArray_FROM_OTF(k_out_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *intensities_arr =
+        PyArray_FROM_OTF(intensities_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+
+    // Grab pointers.
+    vector_float32 *k_in = PyArray_GETPTR1(k_in_arr, 0);
+    float *k_out_ptr = PyArray_GETPTR1(k_out_arr, 0);
+    float *intensities = PyArray_GETPTR1(intensities_arr, 0);
+
+    // Work out how many vectors we're dealing with here.
+    npy_intp *shape = PyArray_SHAPE((PyArrayObject *)k_out_arr);
+    int number_of_vectors = shape[0];
+
+    // Iterate over every vector and apply the correction.
+    for (int i = 0; i < number_of_vectors; ++i)
+    {
+        // Note that this *** MUST ALREADY BE NORMALISED ***.
+        vector_float32 *k_out = (vector_float32 *)(k_out_ptr + i * 3);
+
+        // Work out sin^2(theta), where theta is half of the total angle through
+        // which light has diffracted.
+        float sin_sq_theta = 0.5F * (1.F - (k_out->x * k_in->x +
+                                            k_out->y * k_in->y +
+                                            k_out->z * k_in->z));
+        float cos_theta = sqrt(1 - sin_sq_theta);
+
+        float init_intensity = intensities[i];
+        // Apply the normalisation.
+        intensities[i] *= cos_theta * sin_sq_theta;
+    }
+
+    // Tidy up; return None.
+    Py_DECREF(k_in_arr);
+    Py_DECREF(k_out_arr);
+    Py_DECREF(intensities_arr);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
+static PyObject *linear_pol_correction(PyObject *dummy, PyObject *args)
+{
+    PyObject *polarisation_vector_arg;
+    PyObject *vector_array_arg;
+    PyObject *intensities_arg;
+
+    // Parse these arguments.
+    if (!PyArg_ParseTuple(args, "OOO",
+                          &polarisation_vector_arg, &vector_array_arg,
+                          &intensities_arg))
+        return NULL;
+
+    // Convert to arrays.
+    PyObject *polarisation_vector_arr =
+        PyArray_FROM_OTF(polarisation_vector_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *vector_array = PyArray_FROM_OTF(vector_array_arg,
+                                              NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *intensities_arr = PyArray_FROM_OTF(intensities_arg,
+                                                 NPY_FLOAT32, NPY_IN_ARRAY);
+
+    // Grab pointers.
+    vector_float32 *polarisation =
+        PyArray_GETPTR1(polarisation_vector_arr, 0);
+    float *vector_array_ptr = PyArray_GETPTR1(vector_array, 0);
+    float *intensities = PyArray_GETPTR1(intensities_arr, 0);
+
+    // Work out how many vectors we're dealing with here.
+    npy_intp *shape = PyArray_SHAPE((PyArrayObject *)vector_array);
+    int number_of_vectors = shape[0];
+
+    // Iterate over every vector and apply the correction.
+    for (int i = 0; i < number_of_vectors; ++i)
+    {
+        vector_float32 *k_out = (vector_float32 *)(vector_array_ptr + i * 3);
+
+        // Carry out the dot product. Since both vectors are normalised, this
+        // just gives us the cosine of the angle between them.
+        float cos_phi = k_out->x * polarisation->x +
+                        k_out->y * polarisation->y +
+                        k_out->z * polarisation->z;
+
+        // The polarisation correction is proportional to the square of the sine
+        // of this angle.
+        float sin_sq_phi = 1 - cos_phi * cos_phi;
+
+        // Normalise the intensities.
+        intensities[i] /= sin_sq_phi;
+    }
+
+    // Clean up the arrays that were made here.
+    Py_DECREF(polarisation_vector_arr);
+    Py_DECREF(vector_array);
+    Py_DECREF(intensities_arr);
+
+    // Inc and return None.
     Py_IncRef(Py_None);
     return Py_None;
 }
@@ -264,6 +377,19 @@ static PyMethodDef mapper_c_utils_methods[] = {
         weighted_bin_3d,
         METH_VARARGS,
         "Custom high performance weighted 3d binning tool.",
+    },
+    {
+        "linear_pol_correction",
+        linear_pol_correction,
+        METH_VARARGS,
+        ("Carries out an exact polarisation correction for arbitrarily "
+         "linearly polarised light."),
+    },
+    {
+        "lorentz_correction",
+        lorentz_correction,
+        METH_VARARGS,
+        "Carries out an exact Lorentz correction.",
     },
     {
         "cylindrical_polar",
