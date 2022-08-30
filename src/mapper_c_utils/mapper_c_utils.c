@@ -371,6 +371,67 @@ static PyObject *cylindrical_polar(PyObject *dummy, PyObject *args)
     return Py_None;
 }
 
+void thresholding(PyObject *dummy, PyObject *args)
+{
+    PyObject *input_signal_arg;
+    PyObject *output_signal_arg;
+    PyObject *lag_arg;
+    PyObject *threshold_arg;
+    PyObject *influence_arg;
+
+    if (!PyArg_ParseTuple(args, "OOOOO", &input_signal_arg, &output_signal_arg,
+                          &lag_arg, &threshold_arg, &influence_arg))
+        return NULL;
+
+    PyObject *input_signal_arr =
+        PyArray_FROM_OTF(input_signal_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *output_signal_arr =
+        PyArray_FROM_OTF(output_signal_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    size_t lag = PyLong_AsSize_t(lag_arg);
+    float threshold = PyFloat_AsDouble(threshold_arg);
+    float influence = PyFloat_AsDouble(influence_arg);
+
+    float *input_signal_ptr = (float *)PyArray_GETPTR1(input_signal_arr, 0);
+    float *output_signal_ptr = (float *)PyArray_GETPTR1(output_signal_arr, 0);
+
+    memset(signals, 0, sizeof(int) * SAMPLE_LENGTH);
+    float filteredY[SAMPLE_LENGTH];
+    memcpy(filteredY, y, sizeof(float) * SAMPLE_LENGTH);
+    float avgFilter[SAMPLE_LENGTH];
+    float stdFilter[SAMPLE_LENGTH];
+
+    avgFilter[lag - 1] = mean(y, lag);
+    stdFilter[lag - 1] = stddev(y, lag);
+
+    for (int i = lag; i < SAMPLE_LENGTH; i++)
+    {
+        if (fabsf(y[i] - avgFilter[i - 1]) > threshold * stdFilter[i - 1])
+        {
+            if (y[i] > avgFilter[i - 1])
+            {
+                signals[i] = 1;
+            }
+            else
+            {
+                signals[i] = -1;
+            }
+            filteredY[i] = influence * y[i] + (1 - influence) * filteredY[i - 1];
+        }
+        else
+        {
+            signals[i] = 0;
+        }
+        avgFilter[i] = mean(filteredY + i - lag, lag);
+        stdFilter[i] = stddev(filteredY + i - lag, lag);
+    }
+
+    Py_DECREF(input_signal_arr);
+    Py_DECREF(output_signal_arr);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
 static PyMethodDef mapper_c_utils_methods[] = {
     {
         "weighted_bin_3d",
