@@ -162,6 +162,76 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     return Py_None;
 }
 
+static PyObject *weighted_bin_1d(PyObject *dummy, PyObject *args)
+{
+    // Some object declarations.
+    PyObject *coord_arg = NULL;
+    float start;
+    float step;
+    float shape;
+    PyObject *weights_arg = NULL;
+    PyObject *out_arg = NULL;
+    PyObject *count_arg = NULL;
+
+    // Parse the arguments given to this function on the python end.
+    if (!PyArg_ParseTuple(args, "OfffOOO",
+                          &coord_arg, &start, &step, &shape,
+                          &weights_arg, &out_arg, &count_arg))
+        return NULL;
+
+    // Do some housework. We need to go from python objects to C types, which
+    // requires some casting.
+    PyObject *coords =
+        PyArray_FROM_OTF(coord_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *weights_arr =
+        PyArray_FROM_OTF(weights_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *out_arr =
+        PyArray_FROM_OTF(out_arg, NPY_FLOAT32, NPY_IN_ARRAY);
+    PyObject *count_arr =
+        PyArray_FROM_OTF(count_arg, NPY_UINT32, NPY_IN_ARRAY);
+
+    float *coords_pointer = PyArray_GETPTR1(coords, 0);
+    float *weights = PyArray_GETPTR1(weights_arr, 0);
+    float *out = PyArray_GETPTR1(out_arr, 0);
+    uint32_t *count = PyArray_GETPTR1(count_arr, 0);
+
+    npy_intp *coord_shape = PyArray_SHAPE((PyArrayObject *)coords);
+    int num_coords = coord_shape[0];
+
+    // This is where the heavy lifting takes place. This loop bottlenecks.
+    for (int i = 0; i < num_coords; ++i)
+    {
+        float current_coord = coords_pointer[i];
+
+        // Deal with points being below the lower bound.
+        if (current_coord < start)
+            continue;
+
+        current_coord -= start;
+        current_coord /= step;
+        int32_t index = (int)current_coord;
+
+        // Deal with points being over the upper bound.
+        // There are important, tedious floating point precision reasons why
+        // the bounds checking must be done in two parts. Don't ask.
+        if (index >= shape)
+            continue;
+
+        // This point is within bounds. Add its weight to the weights array.
+        out[index] += weights[i];
+        count[index] += 1;
+    }
+
+    // Do some more housework: try not to leak memory.
+    Py_DECREF(coords);
+    Py_DECREF(weights_arr);
+    Py_DECREF(out_arr);
+    Py_DECREF(count_arr);
+
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
 static PyObject *linear_map(PyObject *dummy, PyObject *args)
 {
     // Pointers to the arguments we're going to receive (one matrix and one
@@ -250,7 +320,6 @@ static PyObject *lorentz_correction(PyObject *dummy, PyObject *args)
                                             k_out->z * k_in->z));
         float cos_theta = sqrt(1 - sin_sq_theta);
 
-        float init_intensity = intensities[i];
         // Apply the normalisation.
         intensities[i] *= cos_theta * sin_sq_theta;
     }
@@ -377,6 +446,12 @@ static PyMethodDef mapper_c_utils_methods[] = {
         weighted_bin_3d,
         METH_VARARGS,
         "Custom high performance weighted 3d binning tool.",
+    },
+    {
+        "weighted_bin_1d",
+        weighted_bin_1d,
+        METH_VARARGS,
+        "Custom high performance weighted 1d binning tool.",
     },
     {
         "linear_pol_correction",
