@@ -110,8 +110,13 @@ static PyObject *weighted_bin_3d(PyObject *dummy, PyObject *args)
     // This is where the heavy lifting takes place. This loop bottlenecks.
     for (int vector_num = 0; vector_num < number_of_vectors; ++vector_num)
     {
-        // Skip if this pixel is being masked.
+        // Skip if this pixel is being masked based on intensity.
         if (weights[vector_num] < min_intensity)
+            continue;
+
+        // Skip if this pixel is being masked (signaled by NaN).
+        // Note that NaN==NaN should give False, so we must use isnan.
+        if (npy_isnan(weights[vector_num]))
             continue;
 
         vector_float32 *current_coord =
