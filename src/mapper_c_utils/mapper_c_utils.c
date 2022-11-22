@@ -323,7 +323,7 @@ static PyObject *lorentz_correction(PyObject *dummy, PyObject *args)
         float sin_sq_theta = 0.5F * (1.F - (k_out->x * k_in->x +
                                             k_out->y * k_in->y +
                                             k_out->z * k_in->z));
-        float cos_theta = sqrt(1 - sin_sq_theta);
+        float cos_theta = npy_sqrtf(1 - sin_sq_theta);
 
         // Apply the normalisation.
         intensities[i] *= cos_theta * sin_sq_theta;
@@ -430,7 +430,7 @@ static PyObject *cylindrical_polar(PyObject *dummy, PyObject *args)
         float angle = atan2f(x, y);
 
         // Calculate the radius.
-        float radius = sqrt(x * x + y * y);
+        float radius = npy_sqrtf(x * x + y * y);
 
         // Now update the current_vector to be in polar coords.
         current_vector->x = radius;
