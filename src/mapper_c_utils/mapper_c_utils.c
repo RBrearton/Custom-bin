@@ -208,6 +208,11 @@ static PyObject *weighted_bin_1d(PyObject *dummy, PyObject *args)
     {
         float current_coord = coords_pointer[i];
 
+        // Skip if this voxel is being masked (signaled by NaN).
+        // Note that NaN==NaN should give False, so we must use isnan.
+        if (npy_isnan(weights[i]))
+            continue;
+
         // Deal with points being below the lower bound.
         if (current_coord < start)
             continue;
